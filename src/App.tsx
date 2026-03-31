@@ -619,17 +619,14 @@ export default function App() {
 
                   {/* Bid Info Overlay */}
                   <div className="absolute bottom-6 right-6 sm:bottom-12 sm:right-12 text-right space-y-1 sm:space-y-2">
-                    {hasReachedLimit ? (
-                      <div className="bg-red-600 text-white px-4 py-2 font-black uppercase italic tracking-widest text-sm sm:text-xl transform -rotate-2">
+                    {hasReachedLimit && (
+                      <div className="bg-red-600 text-white px-4 py-1 font-black uppercase italic tracking-widest text-[10px] sm:text-xs transform -rotate-2 mb-2 inline-block">
                         MAX REACHED
                       </div>
-                    ) : (
-                      <>
-                        <p className="font-mono text-[10px] sm:text-xs uppercase opacity-50">Current Bid</p>
-                        <p className="text-3xl sm:text-6xl font-black tracking-tighter">${room.currentBid}M</p>
-                        <p className="font-mono text-[10px] sm:text-sm font-bold uppercase truncate max-w-[150px] sm:max-w-none">{highestBidderName}</p>
-                      </>
                     )}
+                    <p className="font-mono text-[10px] sm:text-xs uppercase opacity-50">Current Bid</p>
+                    <p className="text-3xl sm:text-6xl font-black tracking-tighter">${room.currentBid}M</p>
+                    <p className="font-mono text-[10px] sm:text-sm font-bold uppercase truncate max-w-[150px] sm:max-w-none">{highestBidderName}</p>
                   </div>
                 </motion.div>
               )}

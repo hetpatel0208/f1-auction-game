@@ -293,39 +293,22 @@ async function startServer() {
         startNextItem(roomId);
       }, 3000);
     } else {
-      // UNSOLD: Replace immediately
-      let pool: (Driver | Manager | TechnicalDirector)[] = [];
-      if (room.itemType === "driver") pool = DRIVERS;
-      else if (room.itemType === "manager") pool = MANAGERS;
-      else if (room.itemType === "technicalDirector") pool = TECHNICAL_DIRECTORS;
-
-      // Find an item not in the current queue and not owned by anyone
-      const usedNames = new Set(room.auctionQueue.map(i => i.name));
-      room.players.forEach(p => {
-        p.drivers.forEach(d => usedNames.add(d.name));
-        if (p.manager) usedNames.add(p.manager.name);
-        if (p.technicalDirector) usedNames.add(p.technicalDirector.name);
-      });
-
-      const available = pool.filter(i => !usedNames.has(i.name));
-      
-      if (available.length > 0) {
-        const replacement = available[Math.floor(Math.random() * available.length)];
-        room.currentItem = replacement;
-        room.auctionQueue[room.itemIndex] = replacement;
-        room.currentBid = 10;
-        room.timer = 15;
-        room.highestBidder = null;
+      // UNSOLD: Push to the end of the queue to be auctioned later
+      if (room.currentItem) {
+        room.auctionQueue.push(room.currentItem);
+        room.auctionTypes.push(room.itemType as any);
         
-        io.to(roomId).emit("room-update", room);
-        startTimer(roomId);
-      } else {
-        // No replacements left, just move on
-        room.itemIndex++;
-        setTimeout(() => {
-          startNextItem(roomId);
-        }, 3000);
+        io.to(roomId).emit("item-sold", {
+          winner: "No one",
+          item: room.currentItem.name,
+          price: 0
+        });
       }
+
+      room.itemIndex++;
+      setTimeout(() => {
+        startNextItem(roomId);
+      }, 1500);
     }
   }
 
