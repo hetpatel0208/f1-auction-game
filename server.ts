@@ -3,7 +3,8 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { DRIVERS, MANAGERS, TECHNICAL_DIRECTORS, ENGINE_SUPPLIERS, Driver, Manager, TechnicalDirector, EngineSupplier } from "./src/data.ts";
+import { DRIVERS, MANAGERS, TECHNICAL_DIRECTORS, ENGINE_SUPPLIERS } from "./src/data.ts";
+import type { Driver, Manager, TechnicalDirector, EngineSupplier } from "./src/data.ts";
 
 const PORT = 3000;
 
@@ -162,23 +163,22 @@ async function startServer() {
         const queue: (Driver | Manager | TechnicalDirector)[] = [];
         const types: ("driver" | "manager" | "technicalDirector")[] = [];
         
-        for (let i = 0; i < playerCount; i++) {
-          queue.push(shuffledDrivers[i * 2]);
+        // Group by type as requested: Drivers -> Managers -> Technical Directors
+        shuffledDrivers.forEach(d => {
+          queue.push(d);
           types.push("driver");
-          queue.push(shuffledDrivers[i * 2 + 1]);
-          types.push("driver");
-          queue.push(shuffledManagers[i]);
+        });
+        shuffledManagers.forEach(m => {
+          queue.push(m);
           types.push("manager");
-          queue.push(shuffledTDs[i]);
+        });
+        shuffledTDs.forEach(td => {
+          queue.push(td);
           types.push("technicalDirector");
-        }
+        });
 
-        // Final shuffle of the interleaved queue
-        const combined = queue.map((item, index) => ({ item, type: types[index] }));
-        combined.sort(() => Math.random() - 0.5);
-
-        room.auctionQueue = combined.map(c => c.item);
-        room.auctionTypes = combined.map(c => c.type as any);
+        room.auctionQueue = queue;
+        room.auctionTypes = types;
         
         room.status = "auction";
         room.itemIndex = 0;
@@ -194,6 +194,9 @@ async function startServer() {
 
       const player = room.players.find(p => p.id === socket.id);
       if (!player) return;
+
+      // Check if player is already the highest bidder
+      if (room.highestBidder === socket.id) return;
 
       // Check if player already has reached the limit for the current item type
       if (room.itemType === "driver" && player.drivers.length >= 2) return;
