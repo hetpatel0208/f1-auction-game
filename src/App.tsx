@@ -114,6 +114,10 @@ export default function App() {
     socket.emit("choose-engine", { roomId, manufacturer });
   };
 
+  const toggleBudgets = () => {
+    socket.emit("toggle-budgets", roomId);
+  };
+
   const calculateScore = (player: Player) => {
     const driverScore = player.drivers.reduce((acc, d) => acc + d.rating, 0);
     const managerScore = player.manager?.rating || 0;
@@ -122,10 +126,22 @@ export default function App() {
     return driverScore + managerScore + tdScore + engineScore;
   };
 
-  const upcomingItems = useMemo(() => {
-    if (!room || room.status !== "auction") return [];
-    return room.auctionQueue.slice(room.itemIndex + 1, room.itemIndex + 4);
-  }, [room?.itemIndex, room?.auctionQueue, room?.status]);
+  const soldItems = useMemo(() => {
+    if (!room) return new Set<string>();
+    const sold = new Set<string>();
+    room.players.forEach(p => {
+      p.drivers.forEach(d => sold.add(d.name));
+      if (p.manager) sold.add(p.manager.name);
+      if (p.technicalDirector) sold.add(p.technicalDirector.name);
+      if (p.engine) sold.add(p.engine.manufacturer);
+    });
+    return sold;
+  }, [room?.players]);
+
+  const sortedPlayers = useMemo(() => {
+    if (!room) return [];
+    return [...room.players].sort((a, b) => calculateScore(b) - calculateScore(a));
+  }, [room?.players]);
 
   const sortedData = useMemo(() => {
     const sort = (data: any[], config: { key: string; direction: string }) => {
@@ -220,43 +236,54 @@ export default function App() {
           </button>
         </div>
         <div className="max-h-[400px] overflow-y-auto font-mono text-[10px]">
-          {sortedData[activeTab].map((item: any, i: number) => (
-            <div 
-              key={i} 
-              className={cn(
-                "grid grid-cols-12 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors",
-                'manufacturer' in item && "bg-blue-50/10"
-              )}
-            >
-              <div className={cn(
-                activeTab === 'engines' ? "col-span-6" : "col-span-8",
-                "p-3 flex flex-col gap-0.5"
-              )}>
-                <span className="font-bold uppercase">{'name' in item ? item.name : item.manufacturer}</span>
-                <span className="opacity-50 italic">
-                  {'status' in item ? item.status : 'era' in item ? item.era : `Type: ${item.type}`}
-                </span>
-              </div>
-              {activeTab === 'engines' && 'power' in item && (
-                <>
-                  <div className="col-span-2 p-3 text-center border-l border-gray-100 flex flex-col justify-center">
-                    <span>{item.power}</span>
-                    <span className="opacity-30">/</span>
-                    <span>{item.reliability}</span>
+          {sortedData[activeTab].map((item: any, i: number) => {
+            const itemName = 'name' in item ? item.name : item.manufacturer;
+            const isSold = soldItems.has(itemName);
+            
+            return (
+              <div 
+                key={i} 
+                className={cn(
+                  "grid grid-cols-12 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors",
+                  'manufacturer' in item && "bg-blue-50/10",
+                  isSold && "opacity-50 grayscale"
+                )}
+              >
+                <div className={cn(
+                  activeTab === 'engines' ? "col-span-6" : "col-span-8",
+                  "p-3 flex flex-col gap-0.5"
+                )}>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold uppercase">{itemName}</span>
+                    {isSold && (
+                      <span className="bg-red-600 text-white px-1.5 py-0.5 text-[8px] font-black uppercase italic tracking-widest">SOLD</span>
+                    )}
                   </div>
-                  <div className="col-span-2 p-3 text-center border-l border-gray-100 flex items-center justify-center font-bold">
-                    ${item.fixed_cost}M
-                  </div>
-                </>
-              )}
-              <div className={cn(
-                activeTab === 'engines' ? "col-span-2" : "col-span-4",
-                "p-3 text-right border-l border-gray-100 flex items-center justify-end text-sm font-black italic"
-              )}>
-                {'rating' in item ? item.rating : 'overall_rating' in item ? item.overall_rating : '-'}
+                  <span className="opacity-50 italic">
+                    {'status' in item ? item.status : 'era' in item ? item.era : `Type: ${item.type}`}
+                  </span>
+                </div>
+                {activeTab === 'engines' && 'power' in item && (
+                  <>
+                    <div className="col-span-2 p-3 text-center border-l border-gray-100 flex flex-col justify-center">
+                      <span>{item.power}</span>
+                      <span className="opacity-30">/</span>
+                      <span>{item.reliability}</span>
+                    </div>
+                    <div className="col-span-2 p-3 text-center border-l border-gray-100 flex items-center justify-center font-bold">
+                      ${item.fixed_cost}M
+                    </div>
+                  </>
+                )}
+                <div className={cn(
+                  activeTab === 'engines' ? "col-span-2" : "col-span-4",
+                  "p-3 text-right border-l border-gray-100 flex items-center justify-end text-sm font-black italic"
+                )}>
+                  {'rating' in item ? item.rating : 'overall_rating' in item ? item.overall_rating : '-'}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {sortedData[activeTab].length === 0 && (
             <div className="p-8 text-center opacity-30 italic">No results found</div>
           )}
@@ -388,6 +415,26 @@ export default function App() {
                   <p className="text-[10px] sm:text-xs opacity-50">Minimum 2 players recommended.</p>
                 </div>
                 {socket.id === room.players[0]?.id && (
+                  <div className="w-full p-4 border border-[#141414] bg-white flex items-center justify-between">
+                    <div className="text-left space-y-1">
+                      <p className="font-bold uppercase text-[10px]">Public Wallets</p>
+                      <p className="font-mono text-[8px] opacity-50">Allow everyone to see each other's budget</p>
+                    </div>
+                    <button 
+                      onClick={toggleBudgets}
+                      className={cn(
+                        "w-10 h-5 rounded-full p-1 transition-colors relative",
+                        room.showBudgets ? "bg-green-600" : "bg-gray-300"
+                      )}
+                    >
+                      <motion.div 
+                        animate={{ x: room.showBudgets ? 20 : 0 }}
+                        className="w-3 h-3 bg-white rounded-full shadow-sm"
+                      />
+                    </button>
+                  </div>
+                )}
+                {socket.id === room.players[0]?.id && (
                   <button
                     onClick={startGame}
                     className="w-full bg-[#141414] text-[#E4E3E0] p-4 sm:p-6 font-bold uppercase tracking-widest hover:bg-opacity-90 transition-all flex items-center justify-center gap-3 text-lg sm:text-xl"
@@ -475,6 +522,20 @@ export default function App() {
                 </div>
               </motion.div>
             ))}
+          </div>
+
+          {/* Mini Leaderboard for Engine Selection */}
+          <div className="bg-white p-6 border border-[#141414] space-y-4">
+            <h4 className="font-mono text-[10px] uppercase opacity-50 tracking-widest text-center">Current Standings</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {sortedPlayers.map((p, i) => (
+                <div key={p.id} className="p-2 border border-gray-100 flex flex-col items-center">
+                  <span className="font-mono text-[8px] opacity-30">#{i + 1}</span>
+                  <span className="font-bold uppercase text-[10px] truncate w-full text-center">{p.name}</span>
+                  <span className="font-black text-sm italic">{calculateScore(p)}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="bg-white p-6 border border-[#141414] text-center">
@@ -654,35 +715,25 @@ export default function App() {
                 </button>
               )}
             </div>
-
-            {/* Upcoming Items */}
-            <div className="bg-white border border-[#141414] p-3 sm:p-4 overflow-x-auto">
-              <h4 className="font-mono text-[10px] uppercase opacity-50 tracking-widest mb-3">Upcoming Items</h4>
-              <div className="flex gap-3 sm:gap-4 min-w-max">
-                {upcomingItems.map((item, i) => (
-                  <div key={item.name} className="w-32 sm:flex-1 p-2 sm:p-3 border border-gray-100 flex flex-col gap-1">
-                    <span className="font-mono text-[8px] uppercase opacity-50">Next {i + 1}</span>
-                    <span className="font-bold uppercase text-[10px] sm:text-xs truncate">{item.name}</span>
-                    <span className="font-mono text-[8px] sm:text-[10px] opacity-70 italic">{item.rating} Rating</span>
-                  </div>
-                ))}
-                {upcomingItems.length === 0 && <p className="text-[10px] font-mono opacity-50">Final items in auction...</p>}
-              </div>
-            </div>
           </div>
 
           {/* Sidebar: Players & Team */}
           <div className="lg:col-span-4 space-y-4 sm:space-y-6 overflow-y-auto max-h-[400px] lg:max-h-[calc(100vh-120px)] pr-2">
-            <h4 className="font-mono text-[10px] uppercase opacity-50 tracking-widest sticky top-0 bg-[#E4E3E0] py-2 z-20">Player Status</h4>
+            <h4 className="font-mono text-[10px] uppercase opacity-50 tracking-widest sticky top-0 bg-[#E4E3E0] py-2 z-20">Leaderboard</h4>
             
-            {room.players.map(p => (
+            {sortedPlayers.map((p, index) => (
               <div key={p.id} className={cn(
-                "bg-white border border-[#141414] p-3 sm:p-4 space-y-2 sm:space-y-3 transition-all",
+                "bg-white border border-[#141414] p-3 sm:p-4 space-y-2 sm:space-y-3 transition-all relative",
                 p.id === socket.id ? "ring-2 ring-[#141414] shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]" : "opacity-80"
               )}>
+                <div className="absolute -top-2 -left-2 bg-[#141414] text-[#E4E3E0] w-6 h-6 flex items-center justify-center font-black italic text-xs z-10">
+                  {index + 1}
+                </div>
                 <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                  <span className="font-black uppercase italic text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{p.name} {p.id === socket.id && "(YOU)"}</span>
-                  <span className="font-mono text-[10px] sm:text-xs font-bold">${p.budget}M</span>
+                  <span className="font-black uppercase italic text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none ml-2">{p.name} {p.id === socket.id && "(YOU)"}</span>
+                  <span className="font-mono text-[10px] sm:text-xs font-bold">
+                    {(room.showBudgets || p.id === socket.id) ? `$${p.budget}M` : "$??M"}
+                  </span>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2">
@@ -707,7 +758,7 @@ export default function App() {
                 </div>
                 
                 <div className="flex justify-between items-center pt-1">
-                  <span className="font-mono text-[8px] uppercase opacity-50">Current Score</span>
+                  <span className="font-mono text-[8px] uppercase opacity-50">Team Points</span>
                   <span className="font-black text-base sm:text-lg">{calculateScore(p)}</span>
                 </div>
               </div>

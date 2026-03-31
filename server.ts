@@ -28,6 +28,7 @@ interface GameState {
   highestBidder: string | null;
   timer: number;
   itemIndex: number;
+  showBudgets: boolean;
   auctionQueue: (Driver | Manager | TechnicalDirector)[];
   auctionTypes: ("driver" | "manager" | "technicalDirector")[];
 }
@@ -73,6 +74,7 @@ async function startServer() {
           highestBidder: null,
           timer: 0,
           itemIndex: 0,
+          showBudgets: true,
           auctionQueue: [],
           auctionTypes: [],
         });
@@ -128,6 +130,14 @@ async function startServer() {
         io.to(playerId).emit("kicked");
         io.to(roomId).emit("room-update", room);
       }
+    });
+
+    socket.on("toggle-budgets", (roomId) => {
+      const room = rooms.get(roomId);
+      if (!room || room.status !== "lobby") return;
+      if (socket.id !== room.players[0]?.id) return;
+      room.showBudgets = !room.showBudgets;
+      io.to(roomId).emit("room-update", room);
     });
 
     socket.on("start-game", (roomId) => {
