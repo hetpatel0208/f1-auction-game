@@ -311,8 +311,9 @@ async function startServer() {
       
       if (available.length > 0) {
         const replacement = available[Math.floor(Math.random() * available.length)];
-        room.auctionQueue.push(replacement);
-        room.auctionTypes.push(room.itemType as any);
+        // Insert immediately after the current item so it's auctioned next
+        room.auctionQueue.splice(room.itemIndex + 1, 0, replacement);
+        room.auctionTypes.splice(room.itemIndex + 1, 0, room.itemType as any);
       }
 
       io.to(roomId).emit("item-sold", {
